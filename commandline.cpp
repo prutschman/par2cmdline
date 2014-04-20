@@ -230,6 +230,8 @@ bool CommandLine::Parse(int argc, char *argv[])
   bool options = true;
   list<string> a_filenames;
 
+  u64 redundancysize = 0;
+
   while (argc>0)
   {
     if (argv[0][0])
@@ -346,21 +348,46 @@ bool CommandLine::Parse(int argc, char *argv[])
               return false;
             }
 
-            char *p = &argv[0][2];
-            while (redundancy <= 10 && *p && isdigit(*p))
+            if (argv[0][2] == 'k'
+                || argv[0][2] == 'm'
+                || argv[0][2] == 'g'
+            )
             {
-              redundancy = redundancy * 10 + (*p - '0');
-              p++;
+              char *p = &argv[0][3];
+              while (*p && isdigit(*p))
+              {
+                redundancysize = redundancysize * 10 + (*p - '0');
+                p++;
+              }
+              switch (argv[0][2])
+              {
+                case 'g':
+                  redundancysize = redundancysize * 1024;
+                case 'm':
+                  redundancysize = redundancysize * 1024;
+                case 'k':
+                  redundancysize = redundancysize * 1024;
+                  break;
+              }
             }
-            if (redundancy > 100 || *p)
+            else
             {
-              cerr << "Invalid redundancy option: " << argv[0] << endl;
-              return false;
-            }
-            if (redundancy == 0 && recoveryfilecount > 0)
-            {
-              cerr << "Cannot set redundancy to 0 and file count > 0" << endl;
-              return false;
+              char *p = &argv[0][2];
+              while (redundancy <= 10 && *p && isdigit(*p))
+              {
+                redundancy = redundancy * 10 + (*p - '0');
+                p++;
+              }
+              if (redundancy > 100 || *p)
+              {
+                cerr << "Invalid redundancy option: " << argv[0] << endl;
+                return false;
+              }
+              if (redundancy == 0 && recoveryfilecount > 0)
+              {
+                cerr << "Cannot set redundancy to 0 and file count > 0" << endl;
+                return false;
+              }
             }
             redundancyset = true;
           }
@@ -781,6 +808,12 @@ bool CommandLine::Parse(int argc, char *argv[])
     if (parfilename.length() > 5 && 0 == stricmp(parfilename.substr(parfilename.length()-5, 5).c_str(), ".par2"))
     {
       parfilename = parfilename.substr(0, parfilename.length()-5);
+    }
+
+    // try to do the redundancy to get as close as possible to the requested size
+    if (redundancyset && redundancysize != 0)
+    {
+      redundancy = (redundancysize * 100) / totalsourcesize;
     }
 
     // Assume a redundancy of 5% if neither redundancy or recoveryblockcount were set.
